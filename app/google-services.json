@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "595808403098",
+    "project_id": "fir-3497e",
+    "storage_bucket": "fir-3497e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595808403098:android:8cda04f38488b7396be923",
+        "android_client_info": {
+          "package_name": "com.example.gmail"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQiA0AcZ5vmrnFMDF3sRmgzC1qH6GirSg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
