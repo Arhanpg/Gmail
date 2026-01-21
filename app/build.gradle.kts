@@ -17,6 +17,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -53,7 +56,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
-
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
     // THIS WAS THE ERROR: Changed 'tooling-preview' to 'ui-tooling-preview'
     implementation("androidx.compose.ui:ui-tooling-preview")
 

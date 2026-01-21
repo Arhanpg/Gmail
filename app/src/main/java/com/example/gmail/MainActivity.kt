@@ -3,8 +3,11 @@ package com.example.gmail
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,32 +32,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        if (Build.VERSION.SDK_INT >= 33) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
-        }
-
+        if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
         val authManager = AuthManager(this)
-
         setContent {
             GmailTheme {
                 var user by remember { mutableStateOf(authManager.getCurrentUser()) }
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         if (user == null) {
-                            LoginScreen(
-                                authManager = authManager,
-                                onLoginSuccess = { user = authManager.getCurrentUser() }
-                            )
+                            LoginScreen(authManager) { user = authManager.getCurrentUser() }
                         } else {
-                            MainAppContent(
-                                userEmail = user?.email ?: "Unknown",
-                                userId = user?.uid ?: "",
-                                onSignOut = {
-                                    authManager.signOut()
-                                    user = null
-                                }
-                            )
+                            MainAppContent(user?.email ?: "Unknown", user?.uid ?: "", authManager)
                         }
                     }
                 }
@@ -67,59 +55,29 @@ class MainActivity : ComponentActivity() {
 fun LoginScreen(authManager: AuthManager, onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         scope.launch {
-            if (result.data != null) {
-                val success = authManager.signInWithIntent(result.data!!)
-                if (success) {
-
-
-                } else {
-                    Toast.makeText(context, "Sign In Failed. Check Logcat!", Toast.LENGTH_LONG).show()
-                }
-            }
+            if (result.data != null && authManager.signInWithIntent(result.data!!)) onLoginSuccess()
+            else Toast.makeText(context, "Sign In Failed", Toast.LENGTH_SHORT).show()
         }
     }
-
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Security App", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = { launcher.launch(authManager.getSignInIntent()) }) {
-                Text("Sign In with Google")
-            }
-        }
+        Button(onClick = { launcher.launch(authManager.getSignInIntent()) }) { Text("Sign In with Google") }
     }
 }
 
 @Composable
-fun MainAppContent(userEmail: String, userId: String, onSignOut: () -> Unit) {
+fun MainAppContent(userEmail: String, userId: String, authManager: AuthManager) {
     val context = LocalContext.current
-
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Dashboard", style = MaterialTheme.typography.titleLarge)
-            Button(
-                onClick = {
-                    val intent = Intent(context, VideoService::class.java)
-                    context.stopService(intent)
-                    onSignOut()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) { Text("Sign Out") }
+            Button(onClick = {
+                context.stopService(Intent(context, VideoService::class.java))
+                authManager.signOut()
+            }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Sign Out") }
         }
-
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-        Text("Background Camera", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-
         BackgroundCameraControl(userEmail, userId)
     }
 }
@@ -129,62 +87,42 @@ fun BackgroundCameraControl(userEmail: String, userId: String) {
     val context = LocalContext.current
     var isRunning by remember { mutableStateOf(false) }
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { perms ->
-        val camera = perms[Manifest.permission.CAMERA] ?: false
-        val mic = perms[Manifest.permission.RECORD_AUDIO] ?: false
-        if (camera && mic) {
-            startVideoService(context, userEmail, userId)
-            isRunning = true
-        } else {
-            Toast.makeText(context, "Permissions Required!", Toast.LENGTH_SHORT).show()
+    // PERMISSIONS FOR CAMERA & MIC
+    val camLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        val hasCam = it[Manifest.permission.CAMERA] == true
+        val hasMic = it[Manifest.permission.RECORD_AUDIO] == true
+        if (hasCam && hasMic) {
+            // Check File Permission separately
+            if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                intent.data = Uri.parse("package:${context.packageName}")
+                context.startActivity(intent)
+                Toast.makeText(context, "Please allow 'All Files Access' then try again", Toast.LENGTH_LONG).show()
+            } else {
+                startVideoService(context, userEmail, userId)
+                isRunning = true
+            }
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isRunning) Color.Red else Color.DarkGray),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp))
+        .background(if (isRunning) Color.Red else Color.DarkGray), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (isRunning) {
-                Text("🔴 BROADCASTING", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+                Text("🔴 LIVE & FILES SERVER ON", color = Color.White)
+                Text("Check Notification for IP URL", color = Color.White)
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = {
-                    val intent = Intent(context, VideoService::class.java)
-                    context.stopService(intent)
-                    isRunning = false
-                }) {
-                    Text("Stop Broadcasting")
-                }
+                Button(onClick = { context.stopService(Intent(context, VideoService::class.java)); isRunning = false }) { Text("Stop All") }
             } else {
-                Text("Camera Offline", color = Color.White)
+                Text("System Offline", color = Color.White)
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = {
-                    launcher.launch(arrayOf(
-                        Manifest.permission.CAMERA,
-                        Manifest.permission.RECORD_AUDIO
-                    ))
-                }) {
-                    Text("Start Background Stream")
-                }
+                Button(onClick = { camLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)) }) { Text("Start System") }
             }
         }
     }
 }
 
 fun startVideoService(context: Context, email: String, uid: String) {
-    val intent = Intent(context, VideoService::class.java).apply {
-        putExtra("userEmail", email)
-        putExtra("userId", uid)
-    }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(intent)
-    } else {
-        context.startService(intent)
-    }
+    val intent = Intent(context, VideoService::class.java).apply { putExtra("userEmail", email); putExtra("userId", uid) }
+    if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
 }
