@@ -75,7 +75,8 @@ fun LoginScreen(authManager: AuthManager, onLoginSuccess: () -> Unit) {
             if (result.data != null) {
                 val success = authManager.signInWithIntent(result.data!!)
                 if (success) {
-                    onLoginSuccess()
+
+
                 } else {
                     Toast.makeText(context, "Sign In Failed. Check Logcat!", Toast.LENGTH_LONG).show()
                 }

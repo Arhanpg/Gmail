@@ -13,9 +13,6 @@ import kotlinx.coroutines.tasks.await
 class AuthManager(private val context: Context) {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
-    // ------------------------------------------------------------------------
-    // TODO: PASTE YOUR ID BELOW OR LOGIN WILL FAIL
-    // ------------------------------------------------------------------------
     private val WEB_CLIENT_ID = "595808403098-51096iteaaunk52a9d30nn4dt0va7q45.apps.googleusercontent.com"
 
     private val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
